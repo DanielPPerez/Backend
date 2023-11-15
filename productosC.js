@@ -56,9 +56,9 @@ router.post('/crear', upload.single('imagen'), async (req, res) => {
 });
 
 // Actualizar un producto por su nombre
-router.put('/actualizar/:nombreProducto', async (req, res) => {
+router.put('/actualizar/:nombreProducto', upload.single('imagen'), async (req, res) => {
   try {
-    const nombreProducto = req.params.nombreProducto.trim();
+    const nombreProducto = PrimerLetraMayus(req.params.nombreProducto.trim());
     const productoActualizado = req.body;
 
     // Validar si hay campos vacíos
@@ -87,23 +87,49 @@ router.put('/actualizar/:nombreProducto', async (req, res) => {
     productoActualizado.talla = PrimerLetraMayus(sanitizeHtml(productoActualizado.talla));
     productoActualizado.marca = PrimerLetraMayus(sanitizeHtml(productoActualizado.marca));
 
-    // Validar si el nuevo nombre de producto ya está en uso
-    const productoExistente = await Producto.findOne({ nombreProducto: productoActualizado.nombreProducto });
-    if (productoExistente && productoExistente.nombreProducto !== nombreProducto) {
-      return res.status(400).json({ error: 'El nuevo nombre de producto ya está en uso' });
-    }
+    // Actualizar la imagen solo si se proporciona una nueva imagen
+    if (req.file) {
+      const imagenBuffer = req.file.buffer;
 
-    // Actualizar el producto
-    const result = await Producto.findOneAndUpdate(
-      { nombreProducto: nombreProducto },
-      { $set: productoActualizado },
-      { new: true }
-    );
+      // Esperar a que la imagen se cargue en Cloudinary
+      const imagenResult = await cloudinary.uploader.upload_stream({ resource_type: 'image' }, async (error, result) => {
+        if (error) {
+          console.error(error);
+          res.status(500).json({ error: error.message });
+        } else {
+          // Actualizar la propiedad de la imagen en el objeto productoActualizado
+          productoActualizado.imagen = result.secure_url;
 
-    if (!result) {
-      return res.status(404).json({ message: 'Producto no encontrado' });
+          // Actualizar el producto en la base de datos
+          const updatedProduct = await Producto.findOneAndUpdate(
+            { nombreProducto: nombreProducto },
+            { $set: productoActualizado },
+            { new: true }
+          );
+
+          if (!updatedProduct) {
+            return res.status(404).json({ message: 'Producto no encontrado' });
+          }
+
+          // Devolver la respuesta con el producto actualizado
+          res.json(updatedProduct);
+        }
+      }).end(imagenBuffer);
+    } else {
+      // Si no se proporciona una nueva imagen, simplemente actualizar el producto en la base de datos
+      const updatedProduct = await Producto.findOneAndUpdate(
+        { nombreProducto: nombreProducto },
+        { $set: productoActualizado },
+        { new: true }
+      );
+
+      if (!updatedProduct) {
+        return res.status(404).json({ message: 'Producto no encontrado' });
+      }
+
+      // Devolver la respuesta con el producto actualizado
+      res.json(updatedProduct);
     }
-    res.json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
