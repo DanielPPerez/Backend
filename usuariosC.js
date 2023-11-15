@@ -57,19 +57,19 @@ router.post("/crear", async (req, res) => {
   }
 });
 
-// Obtener un usuario por su correo electrónico
-router.get("/obtener/:email", async (req, res) => {
+// Obtener un usuario por su ID
+router.get('/obtener/:userId', async (req, res) => {
   try {
-    const email = req.params.email.trim().toLowerCase();
-    const usuario = await Usuario.findOne({ email });
+    const userId = req.params.userId.trim();
+    const usuario = await Usuario.findById(userId);
     if (!usuario) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+      return res.status(404).json({ message: 'Usuario no encontrado' });
     }
     res.json(usuario);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
-  }
+    res.status(500).json({ error: 'Error al obtener el usuario por ID' });
+  }  
 });
 
 // Obtener todos los usuarios
